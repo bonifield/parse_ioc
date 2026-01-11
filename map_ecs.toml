@@ -1,0 +1,108 @@
+[field_map]
+# https://www.elastic.co/docs/reference/ecs/ecs-field-reference
+
+email = [
+	"email.from.address",
+	"email.sender.address",
+	"email.to.address",
+	"email.reply_to.address",
+	"email.cc.address",
+	"email.bcc.address",
+]
+
+domain = [
+	"destination.domain",
+	"url.domain",
+	"tls.client.server_name",
+	"dns.question.registered_domain",
+	"file.origin_referrer_url",
+	"file.origin_url",
+]
+
+ipv4 = [
+	"source.ip",
+	"destination.ip",
+	"dns.resolved_ip",
+	"host.ip",
+	"network.forwarded_ip",
+	"related.ip",
+	"client.ip",
+	"server.ip",
+	"server.nat.ip",
+	"threat.enrichments.indicator.ip",
+]
+
+ipv4_network = [
+	"source.ip",
+	"destination.ip",
+	"dns.resolved_ip",
+	"host.ip",
+	"network.forwarded_ip",
+	"related.ip",
+	"client.ip",
+	"server.ip",
+	"server.nat.ip",
+	"threat.enrichments.indicator.ip",
+]
+
+ipv6 = [
+	"source.ip",
+	"destination.ip",
+	"dns.resolved_ip",
+	"host.ip",
+	"network.forwarded_ip",
+	"related.ip",
+	"client.ip",
+	"server.ip",
+	"server.nat.ip",
+	"threat.enrichments.indicator.ip",
+]
+
+ipv6_network = [
+	"source.ip",
+	"destination.ip",
+	"dns.resolved_ip",
+	"host.ip",
+	"network.forwarded_ip",
+	"related.ip",
+	"client.ip",
+	"server.ip",
+	"server.nat.ip",
+	"threat.enrichments.indicator.ip",
+]
+
+file_path_linux = [
+	"file.path",
+	"file.name",
+]
+
+file_path_windows = [
+	"file.path",
+	"file.name",
+]
+
+md5 = [
+	"dll.hash.md5",
+	"email.attachments.file.hash.md5",
+	"file.hash.md5",
+	"process.hash.md5",
+]
+
+sha256 = [
+	"dll.hash.sha256",
+	"email.attachments.file.hash.sha256",
+	"file.hash.sha256",
+	"process.hash.sha256",
+]
+
+sha512 = [
+	"dll.hash.sha512",
+	"email.attachments.file.hash.sha512",
+	"file.hash.sha512",
+	"process.hash.sha512",
+]
+
+port = [
+	"source.port",
+	"destination.port",
+]

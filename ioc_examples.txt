@@ -1,0 +1,34 @@
+bob@email.local
+bad.username@subdomain.bad.local
+8.8.8.8
+1.2.3.4
+website.local
+https://anotherwebsite.local:9443
+https://username:password@securewebsite.local:8443
+192.168.1.1
+192.168.1.0/24
+8.8.8.0/24
+https://192.168.20.20/bad.txt
+fe80::
+NHKやさしいことばニュース.com
+hxxps://bad.local
+/home/bob/file.txt
+rc:\users\bob smith\desktop\file.txt:alt.exe
+file.txt
+file.txt:alt.exe
+bob documents.pdf
+# comment
+//home//bob//file.txt
+c:\users\bob\desktop\test.txt
+c:\users\bob smith\desktop\file.txt
+c:\users\bob smith\desktop\file.txt
+c:\users\bob smith\desktop\file.txt:alt.exe
+c:\\users\\bob smith\\desktop\\file.txt:alt.exe
+c:\\users\\bob smith\\desktop\\file.txt:alt.exe
+c:\\\\\\users\\\\\\bob smith\\\\\\desktop\\\\\\file2.txt:alt.exe
+c:/users/bob smith/desktop/file.txt:alt.exe
+not-an-ioc
+AAAAAAAAAAAAAAAA
+6cd3556deb0da54bca060b4c39479839
+315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3
+c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421

@@ -1,0 +1,7 @@
+[project]
+name = "ioc_parse"
+version = "0.2.0"
+description = "Parse a list of indicators into a dictionary or JSON structure for programmatic use."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
