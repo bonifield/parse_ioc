@@ -1,5 +1,5 @@
 [project]
-name = "ioc_parse"
+name = "parse_ioc"
 version = "0.2.0"
 description = "Parse a list of indicators into a dictionary or JSON structure for programmatic use."
 readme = "README.md"
