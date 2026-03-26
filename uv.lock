@@ -1,8 +1,8 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "ioc-parse"
+name = "parse-ioc"
 version = "0.2.0"
 source = { virtual = "." }

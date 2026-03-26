@@ -1,6 +1,7 @@
 import ipaddress
 import json
 import re
+import sqlite3
 import sys
 import tomllib
 from dataclasses import dataclass, field, asdict
@@ -76,6 +77,8 @@ class ParseIOC:
 	def _check_file(self) -> bool:
 		"""Checks if the IOC is a file path for either Windows or Linux.
 
+		All unknown strings are considered file names at the end of _process().
+
 		Handles absolute paths, relative paths, and paths with alternative data streams. AI helped write both large regex statements in this function.
 		"""
 		# remove quotes common in Windows
@@ -99,7 +102,7 @@ class ParseIOC:
 			#if re.search(r"\.(sh|py|txt|conf|log|bin|deb|rpm|tar\.gz)$", ioc, re.IGNORECASE) or ioc.startswith('/'):
 			self.ioc_type = "file_path_linux"
 			return True
-		# False if not a path
+		# final return
 		return False
 
 	def _check_sha512(self) -> bool:
@@ -163,6 +166,14 @@ class ParseIOC:
 			parsed = urlparse(url)
 			if not parsed.hostname:
 				return False
+			# patch to only keep domains with a dot in them, thus passing all other strings to the file checker
+			if "." not in parsed.hostname:
+				return False
+			# ignore what may be a common file extension
+			file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|docx|xlsx|pptx|doc|xls|ppt|rtf|csv|txt|log|xml|zip|rar|7z|tar|gz|iso|img|dmg|cab|png|jpg|jpeg|gif|ico|bmp|svg|mp3|mp4|wav|avi|mov|js|php|css|html|htm|sql|conf|ini|yaml|yml|json)$", re.IGNORECASE)
+			if file_extensions.search(parsed.hostname):
+				return False
+			# continue domain handling below this
 			if parsed.username:
 				creds = parsed.username
 				if parsed.password:
@@ -208,9 +219,9 @@ class ParseIOC:
 			# if a check function returns True, return
 			if check():
 				return
-		# fallback
+		# fallback for all otherwise unknown strings
 		if not self.ioc_type:
-			self.ioc_type = "unknown"
+			self.ioc_type = "file"
 
 
 def parse_multi(input_object: List[str] | TextIO, mode="combined") -> dict[str, Any] | List[Any]:
@@ -245,7 +256,35 @@ def parse_multi(input_object: List[str] | TextIO, mode="combined") -> dict[str, 
 	# return list of dicts
 	elif mode == "single":
 		return for_assembler
-	#print(json.dumps(a, indent=4))
+
+
+def to_sqlite(input_object: List[str] | TextIO, db_path: str = "iocs.db") -> None:
+	"""Parse list or file of indicators into a SQLite database.
+
+	Args:
+		input_object: list of IOCs, or path to a text file containing IOCs
+		db_path: path to the output database; default "iocs.db"
+	"""
+	# get the combined dict using parse_multi() in combined mode
+	ioc_data = parse_multi(input_object, mode="combined")
+	
+	conn = sqlite3.connect(db_path)
+	cursor = conn.cursor()
+	
+	# create table if it doesn't exist
+	cursor.execute("CREATE TABLE IF NOT EXISTS indicators (ioc TEXT PRIMARY KEY, type TEXT NOT NULL)")
+	
+	# prep for insert
+	to_insert = []
+	for ioc_type, iocs in ioc_data.items():
+		for ioc in iocs:
+			to_insert.append((ioc, ioc_type))
+			
+	# insert and commit
+	cursor.executemany("INSERT OR IGNORE INTO indicators (ioc, type) VALUES (?, ?)", to_insert)
+	conn.commit()
+	conn.close()
+	print(f"exported {len(to_insert)} indicators to {db_path}")
 
 
 def _field_mapper(iocs: dict, map_file_name: str, chunk_size: int=0) -> dict:
@@ -348,10 +387,11 @@ if __name__ == "__main__":
 	#
 	# THIS IS THE FIRST PRIMARY OUTPUT
 	# parse a list or file IOCs into a large dict or json structure using parse_multi()
-	print(" parse a list or file of IOCs into a combined structure ".center(80, "="))
+	print(" parse a list of IOCs into a combined structure ".center(80, "="))
 	iocs_from_list = parse_multi(ioc_list, mode="combined")
-	iocs_from_file = parse_multi("ioc_examples.txt", mode="combined")
 	print(json.dumps(iocs_from_list, indent=4))
+	print(" parse a file of IOCs into a combined structure ".center(80, "="))
+	iocs_from_file = parse_multi("ioc_examples.txt", mode="combined")
 	print(json.dumps(iocs_from_file, indent=4))
 	#
 	# alternatively parse a file line by line (mode=single) into dicts, instead of calling ParseIOC(indicator)
@@ -365,3 +405,14 @@ if __name__ == "__main__":
 	#m = map_fields(ioc_list, "map_ecs.toml")
 	m = map_fields("ioc_examples.txt", "map_ecs.toml")
 	print(json.dumps(m, indent=4))
+	#
+	# create sqlite db - the default name is iocs.db
+	print(" output to Sqlite database ".center(80, "="))
+	to_sqlite("ioc_examples.txt", "out.db")
+	connection = sqlite3.connect("out.db")
+	cursor = connection.cursor()
+	cursor.execute("SELECT * FROM indicators")
+	rows = cursor.fetchall()
+	for row in rows:
+		print(row)
+	connection.close()
