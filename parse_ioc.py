@@ -7,6 +7,7 @@ import tomllib
 from dataclasses import dataclass, field, asdict
 from typing import Any, BinaryIO, List, TextIO
 from urllib.parse import urlparse
+# for a future release
 # https://github.com/JoshData/python-email-validator
 #from email_validator import validate_email
 
@@ -16,7 +17,8 @@ from urllib.parse import urlparse
 # filenames from a filepath
 
 
-# uv run -m tests.test -f tests/ioc_examples.txt
+# demos
+# uv run tests/parseonly.py -f test/ioc_examples.txt [-m] [-j]
 # uv run ioc_parse.py
 
 
@@ -31,10 +33,9 @@ class ParseIOC:
 	def __post_init__(self) -> None:
 		"""Runs cleaning and processing automatically after __init__.
 
-		Runs .strip() on the IOC, checks for Punycode (IDNA), and then processes the IOC.
+		Runs .strip() on the IOC and processes the IOC.
 		"""
 		self.ioc = self.ioc.strip()
-		self._check_punycode()
 		self._process()
 
 	@property
@@ -64,15 +65,14 @@ class ParseIOC:
 		self.ioc = self.ioc.lower().replace("hxxp", "http").replace("[://]", "://").replace("**.", "").replace("*.", "")
 		return
 
-	def _check_punycode(self) -> str:
+	def _check_punycode(self, item) -> str:
 		"""International punycode checks; searches each character individually and decodes the IOC if needed."""
 		is_it_punycode = False
 		for char in self.ioc:
 			#if not re.search("[A-Za-z0-9.-]", char):
 			if ord(char) > 127:
 				is_it_punycode = True
-				self.ioc = self.ioc.encode("idna").decode().strip()
-				break
+				return item.encode("idna").decode().strip()
 
 	def _check_file(self) -> bool:
 		"""Checks if the IOC is a file path for either Windows or Linux.
@@ -126,13 +126,27 @@ class ParseIOC:
 	def _check_email(self) -> bool:
 		"""Loosely check for email addresses based on regex."""
 		# future: use email_validator like this: validate_email(self.ioc, check_deliverability=False)
-		if re.search(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", self.ioc):
+		# English characters only; misses international characters
+		#if re.search(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", self.ioc):
+		# unsafe check for "@" to use _check_punycode() - WILL IMPROVE IN A FUTURE RELEASE
+		if "@" in self.ioc and ":/" not in self.ioc:
 			self.ioc_type = "email"
+			email_username = self.ioc.split("@")[0]
+			email_domain = self.ioc.split("@")[1]
+			# punycode check here
 			try:
-				ed = self.ioc.split("@")[1]
-				self.extra.append({"ioc":ed, "ioc_type":"domain"})
-			except:
-				return False
+				checked_email_username = self._check_punycode(email_username)
+				checked_email_domain = self._check_punycode(email_domain)
+				if checked_email_username:
+					email_username = checked_email_username
+				if checked_email_domain:
+					email_domain = checked_email_domain
+				# reconstruct the decoded email components
+				self.ioc = email_username + "@" + email_domain
+			except Exception as e:
+				# explicit pass as to keep the international string rather than lose it entirely
+				pass
+			self.extra.append({"ioc":email_domain, "ioc_type":"domain"})
 			return True
 
 	def _check_ip(self) -> bool:
@@ -195,9 +209,16 @@ class ParseIOC:
 			except ValueError:
 				self.ioc = parsed.hostname
 				self.ioc_type = "domain"
+				# punycode check here
+				try:
+					temp_check_punycode_domain = self._check_punycode(parsed.hostname)
+					if temp_check_punycode_domain:
+						self.ioc = temp_check_punycode_domain
+				except Exception as e:
+					# explicit pass as to keep the international domain rather than lose it entirely
+					pass
 				return True
 		except Exception as e:
-			#print("URL_EXCEPTION", str(e))
 			return False
 
 	def _process(self) -> None:
@@ -267,19 +288,19 @@ def to_sqlite(input_object: List[str] | TextIO, db_path: str = "iocs.db") -> Non
 	"""
 	# get the combined dict using parse_multi() in combined mode
 	ioc_data = parse_multi(input_object, mode="combined")
-	
+
 	conn = sqlite3.connect(db_path)
 	cursor = conn.cursor()
-	
+
 	# create table if it doesn't exist
 	cursor.execute("CREATE TABLE IF NOT EXISTS indicators (ioc TEXT PRIMARY KEY, type TEXT NOT NULL)")
-	
+
 	# prep for insert
 	to_insert = []
 	for ioc_type, iocs in ioc_data.items():
 		for ioc in iocs:
 			to_insert.append((ioc, ioc_type))
-			
+
 	# insert and commit
 	cursor.executemany("INSERT OR IGNORE INTO indicators (ioc, type) VALUES (?, ?)", to_insert)
 	conn.commit()
@@ -323,15 +344,7 @@ def _field_mapper(iocs: dict, map_file_name: str, chunk_size: int=0) -> dict:
 					out[field_name].extend(iocs[field_type])
 	else:
 		return "error: no key field_map in loaded TOML file"
-	# chunking should be a user responsibility; may add helper function
-	#if chunk_size > 0:
-	#	for key in out:
-	#		out[key]["values"] = list(_inner_chunk(out[key]["values"], chunk_size))
-	#		out[key]["chunk_size"] = len(out[key]["values"])
-	#
-	#print("="*50)
-	#print(json.dumps(out, indent=4))
-	#mapper(map_data["field_map"], ioc_data, chunk_size=2)
+	# chunking should be a user responsibility
 	return out
 
 
@@ -371,7 +384,6 @@ def _assembler(l: List[str]) -> dict:
 	# clean output
 	for k,v in out.items():
 		out[k] = list(set(v))
-	#print(json.dumps(out, indent=4))
 	return out
 
 
