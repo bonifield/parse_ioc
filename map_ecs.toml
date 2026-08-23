@@ -12,6 +12,7 @@ email = [
 
 domain = [
 	"destination.domain",
+	"destination.registered_domain",
 	"url.domain",
 	"tls.client.server_name",
 	"dns.question.registered_domain",

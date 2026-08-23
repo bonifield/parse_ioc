@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 
 # demos
-# uv run tests/parseonly.py -f test/ioc_examples.txt [-m] [-j]
+# uv run tests/parseonly.py -f tests/ioc_examples.txt [-m] [-j]
 # uv run ioc_parse.py
 
 
@@ -308,7 +308,7 @@ def to_sqlite(input_object: List[str] | TextIO, db_path: str = "iocs.db") -> Non
 	print(f"exported {len(to_insert)} indicators to {db_path}")
 
 
-def _field_mapper(iocs: dict, map_file_name: str, chunk_size: int=0) -> dict:
+def _field_mapper(iocs: dict, map_file_name: str, keep_types: bool=False) -> dict:
 	"""Match field mapping to provided ioc_parse output.
 
 	This is the worker function that maps indicators to SIEM field  names.
@@ -316,27 +316,33 @@ def _field_mapper(iocs: dict, map_file_name: str, chunk_size: int=0) -> dict:
 	Args:
 		ioc: the post-processed IOCs in a dictionary
 		map_file_name: path to the TOML mapping file
-		chunk_size (unused): split IOCs into chunks of n-size
+		keep_types: preserve the types of the fields being processes, such as ipv4, email, etc
+		  - this changes the structure of the output dictionary to field_type[field_name]:[vals, ...]
 	"""
 	try:
 		with open(map_file_name, "rb") as f:
 			map_data = tomllib.load(f)
 	except Exception as e:
 		return str(e)+": cannot open TOML field mapping file."
-	# inner chunking function
-	# chunking should be a user responsibility; may add helper function
-	def _inner_chunk(l, n) -> list:
-		"""Split a large list into smaller lists of n items, with one list of remainders."""
-		for i in range(0, len(l), n):
-			yield l[i:i+n]
+	# dict to be returned
 	out = {}
+	# list to store subdicts, if keep_types is True
+	out_with_types = {}
 	if map_data.get("field_map"):
 		# the type of field, ipv4, domain, etc
 		for field_type in map_data["field_map"]:
+			# hold the field type in a list-of-dictionaries, in case the user wants to keep them
+			out_with_types[field_type] = {}
 			# if the key (ioc type) exists in the parsed IOCs
 			if iocs.get(field_type):
 				# each field we want in the final output, from map toml
 				for field_name in map_data["field_map"][field_type]:
+					# build the dict that keeps field types defined in the toml
+					# make a key if not already there
+					if not out_with_types[field_type].get(field_name):
+						out_with_types[field_type][field_name] = []
+					out_with_types[field_type][field_name].extend(iocs[field_type])
+					# build a simpler output dict that only returns the new field:[vals]
 					# make a key if not already there
 					if not out.get(field_name):
 						out[field_name] = []
@@ -344,11 +350,12 @@ def _field_mapper(iocs: dict, map_file_name: str, chunk_size: int=0) -> dict:
 					out[field_name].extend(iocs[field_type])
 	else:
 		return "error: no key field_map in loaded TOML file"
-	# chunking should be a user responsibility
+	if keep_types:
+		return out_with_types
 	return out
 
 
-def map_fields(input_object: List[str] | TextIO, map_file_name: str) -> dict:
+def map_fields(input_object: List[str] | TextIO, map_file_name: str, keep_types: bool=False) -> dict:
 	"""Callable function to map IOCs to the fields in the TOML configuration.
 
 	This is the friendly entrypoint to the field-to-mapping functions.
@@ -356,9 +363,11 @@ def map_fields(input_object: List[str] | TextIO, map_file_name: str) -> dict:
 	Args:
 		input_object: list of IOCs, or path to a text file containing IOCs
 		map_file_name: path to the TOML mapping file
+		keep_types: preserve the types of the fields being processes, such as ipv4, email, etc
+		  - this changes the structure of the output dictionary to field_type[field_name]:[vals, ...]
 	"""
 	parsed_iocs_combined = parse_multi(input_object, mode="combined")
-	return _field_mapper(parsed_iocs_combined, map_file_name)
+	return _field_mapper(parsed_iocs_combined, map_file_name, keep_types)
 
 
 def _assembler(l: List[str]) -> dict:
@@ -403,24 +412,29 @@ if __name__ == "__main__":
 	iocs_from_list = parse_multi(ioc_list, mode="combined")
 	print(json.dumps(iocs_from_list, indent=4))
 	print(" parse a file of IOCs into a combined structure ".center(80, "="))
-	iocs_from_file = parse_multi("ioc_examples.txt", mode="combined")
+	iocs_from_file = parse_multi("tests/ioc_examples.txt", mode="combined")
 	print(json.dumps(iocs_from_file, indent=4))
 	#
 	# alternatively parse a file line by line (mode=single) into dicts, instead of calling ParseIOC(indicator)
 	print(" yield dictionaries from a list or file, instead of a combined structure ".center(80, "="))
-	for item in parse_multi("ioc_examples.txt", mode="single"):
+	for item in parse_multi("tests/ioc_examples.txt", mode="single"):
 		print(item)
 	#
 	# THIS IS THE SECOND PRIMARY OUTPUT
 	# use a field map to stage siem or database queries
 	print(" provide IOC (file or list) and TOML config (path) map_fields() ".center(80, "="))
 	#m = map_fields(ioc_list, "map_ecs.toml")
-	m = map_fields("ioc_examples.txt", "map_ecs.toml")
+	m = map_fields("tests/ioc_examples.txt", "map_ecs.toml")
 	print(json.dumps(m, indent=4))
+	#
+	# THIS IS THE SECOND PRIMARY OUTPUT, BUT KEEPING THE ORIGINAL FIELD TYPES (ipv4, etc)
+	print(" map_fields() and keep IOC types ".center(80, "="))
+	m2 = map_fields("tests/ioc_examples.txt", "map_ecs.toml", keep_types=True)
+	print(json.dumps(m2, indent=4))
 	#
 	# create sqlite db - the default name is iocs.db
 	print(" output to Sqlite database ".center(80, "="))
-	to_sqlite("ioc_examples.txt", "out.db")
+	to_sqlite("tests/ioc_examples.txt", "out.db")
 	connection = sqlite3.connect("out.db")
 	cursor = connection.cursor()
 	cursor.execute("SELECT * FROM indicators")

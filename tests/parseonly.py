@@ -12,6 +12,7 @@ def get_arguments():
 	parser.add_argument("-f", "--file", dest="filename", default="test_in.txt", type=str, help="input filename", required=True)
 	parser.add_argument("-m", "--map", dest="map_only", action="store_true", help="show mapped format")
 	parser.add_argument("-j", "--json", dest="json_output", action="store_true", help="display indented JSON")
+	parser.add_argument("-k", "--keep-types", dest="keep_types", action="store_true", help="keep field types in output dict")
 	return parser.parse_args()
 
 
@@ -20,7 +21,7 @@ def main():
 	iocs = False
 	try:
 		if args.map_only:
-			iocs = map_fields(args.filename, "map_ecs.toml")
+			iocs = map_fields(args.filename, "map_ecs.toml", keep_types=args.keep_types)
 		else:
 			iocs = parse_multi(args.filename, mode="combined")
 	except Exception as e:

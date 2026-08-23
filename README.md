@@ -431,6 +431,354 @@ file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|
         8443
     ]
 }
+======================= map_fields() and keep IOC types ========================
+{
+    "email": {
+        "email.from.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ],
+        "email.sender.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ],
+        "email.to.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ],
+        "email.reply_to.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ],
+        "email.cc.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ],
+        "email.bcc.address": [
+            "bob@email.local",
+            "bob@emailsubdomain.bad.local.xn--p1ai",
+            "bob@emailsubdomain.bad.local",
+            "alice@email.local",
+            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai"
+        ]
+    },
+    "domain": {
+        "destination.domain": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "destination.registered_domain": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "url.domain": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "tls.client.server_name": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "dns.question.registered_domain": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "file.origin_referrer_url": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ],
+        "file.origin_url": [
+            "bad.local",
+            "badsite.xn-abcd.xn--c1a3a5a.xn--p1ai",
+            "emailsubdomain.bad.local.xn--p1ai",
+            "email.local",
+            "xn--c1a3a5a.xn--p1ai",
+            "securewebsite.local",
+            "xn--nhk-u63b1cko2lyc6jrwxgom6k.com",
+            "emailsubdomain.bad.local",
+            "anotherwebsite.local",
+            "website.local"
+        ]
+    },
+    "ipv4": {
+        "source.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "destination.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "dns.resolved_ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "host.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "network.forwarded_ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "related.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "client.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "server.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "server.nat.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ],
+        "threat.enrichments.indicator.ip": [
+            "1.2.3.4",
+            "192.168.20.20",
+            "8.8.8.8",
+            "192.168.1.1"
+        ]
+    },
+    "ipv4_network": {
+        "source.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "destination.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "dns.resolved_ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "host.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "network.forwarded_ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "related.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "client.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "server.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "server.nat.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ],
+        "threat.enrichments.indicator.ip": [
+            "8.8.8.0/24",
+            "192.168.1.0/24"
+        ]
+    },
+    "ipv6": {
+        "source.ip": [
+            "fe80::"
+        ],
+        "destination.ip": [
+            "fe80::"
+        ],
+        "dns.resolved_ip": [
+            "fe80::"
+        ],
+        "host.ip": [
+            "fe80::"
+        ],
+        "network.forwarded_ip": [
+            "fe80::"
+        ],
+        "related.ip": [
+            "fe80::"
+        ],
+        "client.ip": [
+            "fe80::"
+        ],
+        "server.ip": [
+            "fe80::"
+        ],
+        "server.nat.ip": [
+            "fe80::"
+        ],
+        "threat.enrichments.indicator.ip": [
+            "fe80::"
+        ]
+    },
+    "ipv6_network": {},
+    "file_path_linux": {
+        "file.path": [
+            "/home/bob/file.txt"
+        ],
+        "file.name": [
+            "/home/bob/file.txt"
+        ]
+    },
+    "file_path_windows": {
+        "file.path": [
+            "c:/users/bob smith/desktop/file.txt:alt.exe",
+            "c:\\users\\bob smith\\desktop\\file.txt",
+            "c:\\users\\bob\\desktop\\test.txt",
+            "c:\\users\\bob smith\\desktop\\file.txt:alt.exe",
+            "file.txt:alt.exe",
+            "c:\\users\\bob smith\\desktop\\file2.txt:alt.exe"
+        ],
+        "file.name": [
+            "c:/users/bob smith/desktop/file.txt:alt.exe",
+            "c:\\users\\bob smith\\desktop\\file.txt",
+            "c:\\users\\bob\\desktop\\test.txt",
+            "c:\\users\\bob smith\\desktop\\file.txt:alt.exe",
+            "file.txt:alt.exe",
+            "c:\\users\\bob smith\\desktop\\file2.txt:alt.exe"
+        ]
+    },
+    "md5": {
+        "dll.hash.md5": [
+            "6cd3556deb0da54bca060b4c39479839"
+        ],
+        "email.attachments.file.hash.md5": [
+            "6cd3556deb0da54bca060b4c39479839"
+        ],
+        "file.hash.md5": [
+            "6cd3556deb0da54bca060b4c39479839"
+        ],
+        "process.hash.md5": [
+            "6cd3556deb0da54bca060b4c39479839"
+        ]
+    },
+    "sha256": {
+        "dll.hash.sha256": [
+            "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"
+        ],
+        "email.attachments.file.hash.sha256": [
+            "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"
+        ],
+        "file.hash.sha256": [
+            "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"
+        ],
+        "process.hash.sha256": [
+            "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"
+        ]
+    },
+    "sha512": {
+        "dll.hash.sha512": [
+            "c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421"
+        ],
+        "email.attachments.file.hash.sha512": [
+            "c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421"
+        ],
+        "file.hash.sha512": [
+            "c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421"
+        ],
+        "process.hash.sha512": [
+            "c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421"
+        ]
+    },
+    "port": {
+        "source.port": [
+            9443,
+            8443
+        ],
+        "destination.port": [
+            9443,
+            8443
+        ]
+    }
+}
 ========================== output to Sqlite database ===========================
 exported 34 indicators to out.db
 ('bad.username@subdomain.bad.local', 'email')

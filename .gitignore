@@ -17,6 +17,7 @@ wheels/
 *.log
 *.env
 *.db
+output.txt
 
 # temp files
 *~
