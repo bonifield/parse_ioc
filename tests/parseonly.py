@@ -8,7 +8,7 @@ from parse_ioc import map_fields, parse_multi, ParseIOC, to_sqlite
 
 def get_arguments():
 	"""Retrieves argparse values."""
-	parser = argparse.ArgumentParser(description="script description")
+	parser = argparse.ArgumentParser(description="parse indicators")
 	parser.add_argument("-f", "--file", dest="filename", default="test_in.txt", type=str, help="input filename", required=True)
 	parser.add_argument("-m", "--map", dest="map_only", action="store_true", help="show mapped format")
 	parser.add_argument("-j", "--json", dest="json_output", action="store_true", help="display indented JSON")

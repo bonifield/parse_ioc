@@ -117,6 +117,12 @@ class ParseIOC:
 			self.ioc_type = "sha256"
 			return True
 
+	def _check_sha1(self) -> bool:
+		"""Check for SHA-1 hash, only based on string length."""
+		if re.search("^[A-Za-z0-9]{40}$", self.ioc):
+			self.ioc_type = "sha1"
+			return True
+
 	def _check_md5(self) -> bool:
 		"""Check for MD5 hash, only based on string length."""
 		if re.search("^[A-Za-z0-9]{32}$", self.ioc):
@@ -228,6 +234,7 @@ class ParseIOC:
 		checks = [
 			self._check_sha512,
 			self._check_sha256,
+			self._check_sha1,
 			self._check_md5,
 			self._check_email,
 			self._check_ip,
