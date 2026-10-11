@@ -36,7 +36,7 @@ from parse_ioc import ParseIOC, parse_multi, map_fields, to_sqlite
 - `map_fields`: function that maps parsed indicators by type to fields used in a SIEM, specified a TOML config
 - `to_sqlite`: writes parsed indicators to a simple Sqlite3 database
 
-### Categorize a single indicator
+### Categorize a single indicator using `ParseIOC()`
 ```
 >>> i = ParseIOC("https://192.168.20.20/bad")
 >>> i.to_dict
@@ -59,7 +59,7 @@ from parse_ioc import ParseIOC, parse_multi, map_fields, to_sqlite
             ...
 ```
 
-### Categorize a **list** or **file** of indicators
+### Categorize a **list** or **file** of indicators using `parse_multi()`
 
 using `mode="combined"` produces one massive dictionary of categorized indicators
 ```
@@ -104,7 +104,7 @@ using `mode="single"` produces a **list of dictionaries**, similar to calling `P
             }
 ```
 
-### Map a **list** or **file** of indicators to a TOML of SIEM fields
+### Map a **list** or **file** of indicators to a TOML of SIEM fields using `map_fields()`
 
 example shows parsing a file into [Elastic Common Schema (ECS)](https://www.elastic.co/docs/reference/ecs/ecs-field-reference) fields
 ```
@@ -131,7 +131,7 @@ specify `keep_types=True` in `map_fields()` to nest the SIEM values under the or
              ...
 ```
 
-### Create Sqlite database of parsed indicators
+### Create Sqlite database of parsed indicators using `to_sqlite()`
 - table name: `indicators`
 - columns: `ioc` (`TEXT`, primary key) and `type` (`TEXT`)
 - uses `parse_multi(input_object, mode="combined")`
