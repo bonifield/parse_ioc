@@ -16,6 +16,22 @@ This tool will support more formats (imphash, ssdeep, ja3+) "eventually".
 
 **Otherwise-unidentifiable strings are categorized as "file".**
 
+IOCs are categorized as one of these types:
+- `domain`
+- `email`
+- `file_path_linux`
+- `file_path_windows`
+- `ipv4`
+- `ipv4_network`
+- `ipv6`
+- `ipv6_network`
+- `md5`
+- `sha1`
+- `sha256`
+- `sha512`
+- extra: `credentials`
+- extra: `port`
+
 ## Setup
 
 ```
@@ -104,7 +120,9 @@ using `mode="single"` produces a **list of dictionaries**, similar to calling `P
             }
 ```
 
-### Map a **list** or **file** of indicators to a TOML of SIEM fields using `map_fields()`
+### Map a **list** or **file** of indicators to SIEM fields using `map_fields()`
+
+- use the `map_ecs.toml` file as a reference or template
 
 example shows parsing a file into [Elastic Common Schema (ECS)](https://www.elastic.co/docs/reference/ecs/ecs-field-reference) fields
 ```
@@ -144,7 +162,7 @@ exported 41 indicators to iocs.db
 
 example output using `sqlite3`
 ```
-$ sqlite3 iocs.db "SELECT * FROM indicators;"
+$ sqlite3 iocs.db "SELECT ioc,type FROM indicators;"
 xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai|email
 alice@email.local|email
 bob@emailsubdomain.bad.local.xn--p1ai|email
@@ -212,3 +230,8 @@ $ uv run tests/parseonly.py -f tests/ioc_examples.txt -mjk
             "8.8.8.0/24"
     ...
 ```
+
+## TODO
+
+- add optional type conversions to match TheHive5 default observable types
+	- change the list of categorizations in README to a markdown table, showing the converted types
