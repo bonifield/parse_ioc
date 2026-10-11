@@ -47,8 +47,27 @@ print(json.dumps(p, indent=4))
 
 ### Map a **list** or **file** of indicators to a TOML of SIEM fields
 ```
-m = map_fields("ioc_examples.txt", "map_ecs.toml")
+m = map_fields("ioc_examples.txt", "map_ecs.toml", keep_types=False)
 print(json.dumps(m, indent=4))
+#
+{
+    "email.from.address": [
+        "bad.username@subdomain.bad.local",
+        "bob@email.local"
+    ],
+    ...
+```
+alternatively, nest these values under the original type categorizations by specifying `keep_types`
+```
+m = map_fields("ioc_examples.txt", "map_ecs.toml", keep_types=True)
+print(json.dumps(m, indent=4))
+{
+    "email": {
+        "email.from.address": [
+            "bad.username@subdomain.bad.local",
+            "bob@email.local"
+        ],
+        ...
 ```
 
 ### Create Sqlite database of parsed indicators
@@ -198,7 +217,7 @@ file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|
 {'ioc': '6cd3556deb0da54bca060b4c39479839', 'ioc_type': 'md5'}
 {'ioc': '315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3', 'ioc_type': 'sha256'}
 {'ioc': 'c1527cd893c124773d811911970c8fe6e857d6df5dc9226bd8a160614c0cd963a4ddea2b94bb7d36021ef9d865d5cea294a82dd49a0bb269f51f6e7a57f79421', 'ioc_type': 'sha512'}
-======== provide IOC (file or list) and TOML config (path) map_fields() ========
+======== map_fields() - provide IOC (file or list) and TOML config (path) ========
 {
     "email.from.address": [
         "bad.username@subdomain.bad.local",
@@ -431,7 +450,7 @@ file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|
         8443
     ]
 }
-======================= map_fields() and keep IOC types ========================
+======================= map_fields( ... , keep_types=True) ========================
 {
     "email": {
         "email.from.address": [
