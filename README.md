@@ -181,12 +181,7 @@ email.local|domain
 file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|docx|xlsx|pptx|doc|xls|ppt|rtf|csv|txt|log|xml|zip|rar|7z|tar|gz|iso|img|dmg|cab|png|jpg|jpeg|gif|ico|bmp|svg|mp3|mp4|wav|avi|mov|js|php|css|html|htm|sql|conf|ini|yaml|yml|json)$", re.IGNORECASE)
 ```
 
-## Known Issues
-
-- need to streamline and optimize code
-- remove the filepath regex statements created by AI
-
-## Expected sample output from running `tests/parse_ioc.py`
+## Expected output from running `tests/parse_ioc.py` using example data
 ```
 $ uv run tests/parseonly.py -f tests/ioc_examples.txt -h
 usage: parseonly.py [-h] -f FILENAME [-m] [-j] [-k]
@@ -235,3 +230,5 @@ $ uv run tests/parseonly.py -f tests/ioc_examples.txt -mjk
 
 - add optional type conversions to match TheHive5 default observable types
 	- change the list of categorizations in README to a markdown table, showing the converted types
+- need to streamline and optimize code
+- remove the filepath regex statements created by AI
