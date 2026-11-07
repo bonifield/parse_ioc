@@ -32,6 +32,7 @@ IOCs are categorized as one of these types:
 - extra: `credentials`
 - extra: `port`
 
+
 ## Setup
 
 ```
@@ -42,29 +43,35 @@ python3 -m pip install parse_ioc
 
 ## Usage
 
-### Imports
+
+### Import
 
 ```
-from parse_ioc import ParseIOC, parse_multi, map_fields, to_sqlite
+from parse_ioc import ParseIOC
 ```
-- `ParseIOC`: class that parses each indicator
-- `parse_multi`: function that wraps `ParseIOC` to create one large dictionary, or a list of dictionaries, containing the parsed indicators
-- `map_fields`: function that maps parsed indicators by type to fields used in a SIEM, specified a TOML config
-- `to_sqlite`: writes parsed indicators to a simple Sqlite3 database
 
-### Categorize a single indicator using `ParseIOC()`
+### Categorize a single indicator using `ParseIOC.parse_one()`
+
+available attributes:
+- `ioc_type`: the categorization (string)
+- `to_dict`: the categorized IOC as a dictionary (contains `ioc` and `ioc_type`)
+- `to_json`: the categorized IOC as a JSON string (contains `ioc` and `ioc_type`)
+
 ```
->>> i = ParseIOC("https://192.168.20.20/bad")
->>> i.to_dict
+>>> from parse_ioc import ParseIOC
+>>> p = ParseIOC.parse_one("https://192.168.20.20/")
+>>> p.ioc_type
+'ipv4'
+>>> p.to_dict
 {'ioc': '192.168.20.20', 'ioc_type': 'ipv4'}
->>> i.to_json
+>>> p.to_json
 '{"ioc": "192.168.20.20", "ioc_type": "ipv4"}'
 ```
 
 "extra" details are added when appropriate, such as credentials in a URL, ports, or domains in email addresses
 ```
->>> e = ParseIOC("alice@email.local")
->>> print(json.dumps(e.to_dict, indent=4))
+>>> e = ParseIOC.parse_one("alice@email.local").to_dict
+>>> print(json.dumps(e, indent=4))
 {
     "ioc": "alice@email.local",
     "ioc_type": "email",
@@ -72,159 +79,95 @@ from parse_ioc import ParseIOC, parse_multi, map_fields, to_sqlite
         {
             "ioc": "email.local",
             "ioc_type": "domain"
-            ...
+        }
+    ]
+}
 ```
 
-### Categorize a **list** or **file** of indicators using `parse_multi()`
 
-using `mode="combined"` produces one massive dictionary of categorized indicators
+### Categorize a **list** or **file** of indicators using `ParseIOC()` methods
+
+Instantiate the class with your file path once using `ParseIOC(<path>)`, then use class methods.
+
+Using `mode="combined"` produces one dictionary of categorized indicators
 ```
->>> p = parse_multi(ioc_list, mode="combined")
-# or
->>> p = parse_multi("ioc_examples.txt", mode="combined")
->>> import json
+>>> parser = ParseIOC("tests/ioc_examples.txt")
+>>> p = parser.parse_many(mode="combined")
 >>> print(json.dumps(p, indent=4))
 {
     "email": [
+        "bob@email.local",
+        "bob@emailsubdomain.bad.local.xn--p1ai",
         "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai",
-        "alice@email.local",
         ...
 ```
 
-using `mode="single"` produces a **list of dictionaries**, similar to calling `ParseIOC(ioc)` by itself in a loop and putting the results in a list
+Using `mode="single"` produces a list of dictionaries in the `parse_one()` style
+- **this is the required input type for `map_fields()` below**
 ```
->>> p = parse_multi("tests/ioc_examples.txt", mode="single")
+>>> parser = ParseIOC("tests/ioc_examples.txt")
+>>> p = parser.parse_many(mode="single")
 >>> print(json.dumps(p, indent=4))
 [
     {
-        "ioc": "website.local",
+        "ioc": "bob@email.local",
+        "ioc_type": "email"
+    },
+    {
+        "ioc": "email.local",
         "ioc_type": "domain"
     },
     {
-        "ioc": "anotherwebsite.local",
-        "ioc_type": "domain",
-        "extra": [
-            {
-                "ioc": 9443,
-                "ioc_type": "port"
-            }
-        ]
+        "ioc": 9443,
+        "ioc_type": "port"
     },
     {
-        "ioc": "bob@email.local",
-        "ioc_type": "email",
-        "extra": [
-            {
-                "ioc": "email.local",
-                "ioc_type": "domain"
-            }
+        "ioc": "username:password",
+        "ioc_type": "credentials"
+    },
+    ...
 ```
+
 
 ### Map a **list** or **file** of indicators to SIEM fields using `map_fields()`
 
-- use the `map_ecs.toml` file as a reference or template
-
-example shows parsing a file into [Elastic Common Schema (ECS)](https://www.elastic.co/docs/reference/ecs/ecs-field-reference) fields
+These examples use `map_ecs.toml` as a reference for parsing a file into [Elastic Common Schema (ECS)](https://www.elastic.co/docs/reference/ecs/ecs-field-reference) fields
 ```
->>> m = map_fields("tests/ioc_examples.txt", "map_ecs.toml")
->>> print(json.dumps(m, indent=4))
+>>> parser = ParseIOC("tests/ioc_examples.txt")
+>>> list_of_dicts = parser.parse_many(mode="single")
+>>> mapped_fields = parser.map_fields(list_of_dicts, map_file="map_ecs.toml")
+>>> print(json.dumps(mapped_fields, indent=4))
 {
-    "email.from.address": [
-        "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai",
-        "alice@email.local",
-        "bob@emailsubdomain.bad.local.xn--p1ai",
-        "bob@email.local",
+    "destination.domain": [
+        "email.local",
+        "emailsubdomain.bad.local",
+        "emailsubdomain.bad.local.xn--p1ai",
         ...
 ```
 
-specify `keep_types=True` in `map_fields()` to nest the SIEM values under the original type categorizations
+Specify `keep_types=True` in `map_fields()` to nest the SIEM values under the original type categorizations
 ```
->>> m = map_fields("tests/ioc_examples.txt", "map_ecs.toml", keep_types=True)
->>> print(json.dumps(m, indent=4))
+>>> parser = ParseIOC("tests/ioc_examples.txt")
+>>> list_of_dicts = parser.parse_many(mode="single")
+>>> mapped_fields = parser.map_fields(list_of_dicts, map_file="map_ecs.toml", keep_types=True)
+>>> print(json.dumps(mapped_fields, indent=4))
 {
-    "email": {
-        "email.from.address": [
-            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai",
-            "alice@email.local",
+    "domain": {
+        "destination.domain": [
+            "email.local",
+            "emailsubdomain.bad.local",
+            "emailsubdomain.bad.local.xn--p1ai",
              ...
 ```
 
-### Create Sqlite database of parsed indicators using `to_sqlite()`
-- table name: `indicators`
-- columns: `ioc` (`TEXT`, primary key) and `type` (`TEXT`)
-- uses `parse_multi(input_object, mode="combined")`
-- `extra` data has its own row, not linked to its parent data
-	- ex. a port won't have any reference to the original URL it came from
-```
->>> to_sqlite("tests/ioc_examples.txt", "iocs.db")
-exported 41 indicators to iocs.db
-```
-
-example output using `sqlite3`
-```
-$ sqlite3 iocs.db "SELECT ioc,type FROM indicators;"
-xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai|email
-alice@email.local|email
-bob@emailsubdomain.bad.local.xn--p1ai|email
-bob@email.local|email
-192.168.1.1|ipv4
-...
-9443|port
-email.local|domain
-...
-```
 
 ## Gotchas
-- Domain names must have a period (`.`) otherwise the string will be considered a file
+- Domain names must have a period (`.`) otherwise the string will be considered a file.
 - This regex in the domain checker, determines if the parsed domain name drops further down to the `file` checker or not:
 ```
 file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|docx|xlsx|pptx|doc|xls|ppt|rtf|csv|txt|log|xml|zip|rar|7z|tar|gz|iso|img|dmg|cab|png|jpg|jpeg|gif|ico|bmp|svg|mp3|mp4|wav|avi|mov|js|php|css|html|htm|sql|conf|ini|yaml|yml|json)$", re.IGNORECASE)
 ```
 
-## Expected output from running `tests/parse_ioc.py` using example data
-```
-$ uv run tests/parseonly.py -f tests/ioc_examples.txt -h
-usage: parseonly.py [-h] -f FILENAME [-m] [-j] [-k]
-
-parse indicators
-
-options:
-  -h, --help           show this help message and exit
-  -f, --file FILENAME  input filename
-  -m, --map            show mapped format
-  -j, --json           display indented JSON
-  -k, --keep-types     keep field types in output dict
-```
-
-```
-$ uv run tests/parseonly.py -f tests/ioc_examples.txt -mjk
-{
-    "email": {
-        "email.from.address": [
-            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai",
-            "bob@emailsubdomain.bad.local",
-            "alice@email.local",
-            "bob@emailsubdomain.bad.local.xn--p1ai",
-            "bob@email.local"
-        ],
-        "email.sender.address": [
-            "xn--bob--o4d3g5c@xn--c1a3a5a.xn--p1ai",
-            "bob@emailsubdomain.bad.local",
-    ...
-    "ipv4": {
-        "source.ip": [
-            "192.168.20.20",
-            "8.8.8.8",
-            "1.2.3.4",
-            "192.168.1.1"
-        ],
-    ...
-    "ipv4_network": {
-        "source.ip": [
-            "192.168.1.0/24",
-            "8.8.8.0/24"
-    ...
-```
 
 ## TODO
 

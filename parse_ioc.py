@@ -5,29 +5,15 @@ import sqlite3
 import sys
 import tomllib
 from dataclasses import dataclass, field, asdict
-from typing import Any, BinaryIO, List, TextIO
+from typing import Any, BinaryIO, TextIO, Union
 from urllib.parse import urlparse
-# for a future release
-# https://github.com/JoshData/python-email-validator
-#from email_validator import validate_email
-
-
-# TODO
-# imphash, ssdeep, ja3+
-# filenames from a filepath
-
-
-# demos
-# uv run tests/parseonly.py -f tests/ioc_examples.txt [-m] [-j]
-# uv run ioc_parse.py
 
 
 @dataclass
-class ParseIOC:
+class _IOCRecord:
 	"""Determines the type of an indicator of compromise (IOC), such as ipv4, domain, MD5, etc."""
 	ioc: str
 	ioc_type: str | None = None
-	# using field(default_factory=list) for mutable default lists
 	extra: list[dict[str, Any]] = field(default_factory=list)
 
 	def __post_init__(self) -> None:
@@ -56,22 +42,17 @@ class ParseIOC:
 
 	def _preclean(self) -> None:
 		"""Suppresses multiple forward and backward slashes. Does not affect _check_domain()."""
-		if "//" in self.ioc:
+		while "//" in self.ioc:
 			self.ioc = self.ioc.replace("//", "/")
-			self._preclean()
-		elif "\\\\" in self.ioc:
+		while "\\\\" in self.ioc:
 			self.ioc = self.ioc.replace("\\\\", "\\")
-			self._preclean()
 		self.ioc = self.ioc.lower().replace("hxxp", "http").replace("[://]", "://").replace("**.", "").replace("*.", "")
 		return
 
 	def _check_punycode(self, item) -> str:
 		"""International punycode checks; searches each character individually and decodes the IOC if needed."""
-		is_it_punycode = False
 		for char in self.ioc:
-			#if not re.search("[A-Za-z0-9.-]", char):
 			if ord(char) > 127:
-				is_it_punycode = True
 				return item.encode("idna").decode().strip()
 
 	def _check_file(self) -> bool:
@@ -152,7 +133,7 @@ class ParseIOC:
 			except Exception as e:
 				# explicit pass as to keep the international string rather than lose it entirely
 				pass
-			self.extra.append({"ioc":email_domain, "ioc_type":"domain"})
+			self.extra.append({"ioc": email_domain, "ioc_type": "domain"})
 			return True
 
 	def _check_ip(self) -> bool:
@@ -184,10 +165,8 @@ class ParseIOC:
 			# add schema to urlparse properly parses netloc (domain)
 			url = "https://" + url
 			parsed = urlparse(url)
-			if not parsed.hostname:
-				return False
 			# patch to only keep domains with a dot in them, thus passing all other strings to the file checker
-			if "." not in parsed.hostname:
+			if not parsed.hostname or "." not in parsed.hostname:
 				return False
 			# ignore what may be a common file extension
 			file_extensions = re.compile(r"\.(?:exe|dll|msi|bat|cmd|elf|scr|cpl|ps1|vbs|pdf|docx|xlsx|pptx|doc|xls|ppt|rtf|csv|txt|log|xml|zip|rar|7z|tar|gz|iso|img|dmg|cab|png|jpg|jpeg|gif|ico|bmp|svg|mp3|mp4|wav|avi|mov|js|php|css|html|htm|sql|conf|ini|yaml|yml|json)$", re.IGNORECASE)
@@ -198,11 +177,11 @@ class ParseIOC:
 				creds = parsed.username
 				if parsed.password:
 					creds += f":{parsed.password}"
-				self.extra.append({"ioc":creds, "ioc_type":"credentials"})
+				self.extra.append({"ioc": creds, "ioc_type": "credentials"})
 			if parsed.port:
 				# possible future feature, to optionally remove "common" high ports via argument
 				#if port > 1024 and port != [5353, 8000, 8080, 8443]:
-				self.extra.append({"ioc":parsed.port, "ioc_type":"port"})
+				self.extra.append({"ioc": parsed.port, "ioc_type": "port"})
 			# final check for if the domain is an IP
 			try:
 				# anything except an IP will trigger exception
@@ -210,7 +189,6 @@ class ParseIOC:
 				# if no exception, update self.ioc and run _check_ip()
 				self.ioc = parsed.hostname
 				self._check_ip()
-				#print("A"*20, parsed.hostname)
 				return True
 			except ValueError:
 				self.ioc = parsed.hostname
@@ -220,11 +198,11 @@ class ParseIOC:
 					temp_check_punycode_domain = self._check_punycode(parsed.hostname)
 					if temp_check_punycode_domain:
 						self.ioc = temp_check_punycode_domain
-				except Exception as e:
+				except Exception:
 					# explicit pass as to keep the international domain rather than lose it entirely
 					pass
 				return True
-		except Exception as e:
+		except Exception:
 			return False
 
 	def _process(self) -> None:
@@ -252,200 +230,212 @@ class ParseIOC:
 			self.ioc_type = "file"
 
 
-def parse_multi(input_object: List[str] | TextIO, mode="combined") -> dict[str, Any] | List[Any]:
-	"""Parse list or file of indicators into a large combined structure or individual lines.
+class ParseIOC:
+	"""Parser class managing IOC parsing operations and external functions.
 
-	Args:
-		input_object: list of IOCs, or path to a text file containing IOCs
-		mode: "combined" produces a single returned object, "single" produces individual lines
+	Can be initialized with an input source (file path, list, or stream)
+	for batch processing, or used with static methods for single strings.
 	"""
-	for_assembler = []
-	# read a list
-	if isinstance(input_object, list):
-		for item in input_object:
-			#item = repr(item)
-			if not item.startswith("#") and not item.startswith("="):
-				ioc = ParseIOC(item)
-				for_assembler.append(ioc.to_dict)
-	# read a file
-	else:
-		try:
-			with open(input_object) as input_file:
+
+	def __init__(self, input_source: Union[str, list[str], TextIO, None] = None) -> None:
+		self.input_source = input_source
+
+	@staticmethod
+	def parse_one(ioc_str: str) -> _IOCRecord:
+		"""Parses a single indicator string on the fly (stateless).
+
+		Can be called directly as ParseIOC.parse_one(ioc_str) without instantiating the class.
+		"""
+		return _IOCRecord(ioc_str)
+
+	def parse_many(self, input_source: list[str] | TextIO | None = None, mode="combined") -> dict[str, Any] | list[Any]:
+		"""Parse a list of strings, or a text file.
+
+		Args:
+			input_source: list of IOCs, or path to a text file containing IOCs
+			mode: "combined" produces a single returned object, "single" produces individual lines
+		"""
+
+		# use the passed input_source if provided, otherwise fall back to the instance variable
+		source = input_source if input_source is not None else self.input_source
+		if source is None:
+			raise ValueError("No input source provided to ParseIOC parser.")
+
+		for_assembler = []
+		# read a list
+		if isinstance(source, list):
+			for item in source:
+				#item = repr(item)
+				if not item.startswith("#") and not item.startswith("="):
+					ioc = _IOCRecord(item)
+					for_assembler.append(ioc.to_dict)
+		# read a file
+		else:
+			with open(source) as input_file:
 				for line in input_file:
 					if not line.startswith("#") and not line.startswith("="):
-						ioc = ParseIOC(line)
+						ioc = _IOCRecord(line)
 						for_assembler.append(ioc.to_dict)
+		# return a single dictionary
+		if mode == "combined":
+			return self._assembler(for_assembler)
+		# return list of dicts, with "extra" items split into their own list entries (not nested)
+		elif mode == "single":
+			return self._single_extra_helper(for_assembler)
+
+	def _assembler(self, l: list[str]) -> dict:
+		"""Combines all IOCs, including nested "extra" entries, into one deduped dictionary."""
+		out = {}
+		def inner(x):
+			out.setdefault(x["ioc_type"], []).append(x["ioc"])
+		for d in l:
+			inner(d)
+			if d.get("extra"):
+				for dd in d["extra"]:
+					inner(dd)
+		for k, v in out.items():
+			out[k] = list(set(v))
+		return out
+
+	def _single_extra_helper(self, l: list[str]) -> list[Any]:
+		"""Helper function for moving "extra" nested keys into a flat list."""
+		out = []
+		for item in l:
+			if item.get("extra"):
+				for extra_item in item["extra"]:
+					out.append(extra_item)
+				item.pop("extra")
+		out.extend(l)
+		return out
+
+	def map_fields(self, iocs: dict[str, Any] | list[dict[str, Any]], map_file: str, keep_types: bool = False) -> dict[str, Any]:
+		"""Maps parsed IOC fields to a schema defined in an external TOML mapping file.
+
+		Args:
+			iocs: A list of IOC dictionaries parse_many(mode="single"), or the dictionary returned by parse_one().
+			map_file: Path to a TOML configuration file containing a field map.
+			keep_types: If True, nests mapped fields under their respective IOC types.
+
+		Returns:
+			A dictionary mapping of SIEM fields and their unique indicator values, to be queried by other processes.
+		"""
+
+		# un-nest "extra" items, and wrap the single dict from parse_one() into a list
+		if isinstance(iocs, dict):
+			list_for_extras = []
+			if iocs.get("extra"):
+				for ex in iocs["extra"]:
+					list_for_extras.append(ex)
+				iocs.pop("extra")
+			iocs = [iocs] + list_for_extras 
+
+		out = {}
+		try:
+			with open(map_file, "rb") as f:
+				map_data = tomllib.load(f)
+		except (FileNotFoundError, PermissionError) as e:
+			raise FileNotFoundError(f"cannot open TOML field mapping file {map_file}: {e}") from e
 		except Exception as e:
-			print(str(e))
-			return for_assembler
-	# dict
-	if mode == "combined":
-		return _assembler(for_assembler)
-	# return list of dicts
-	elif mode == "single":
-		return for_assembler
+			raise RuntimeError(f"failed to parse TOML mapping file {map_file}: {e}") from e
+		# stop if there isn't a field mapping
+		if map_data.get("field_map"):
+			field_map = map_data["field_map"]
+			for item in iocs:
+				if item.get("ioc_type") and item.get("ioc"):
+					ioc_type = item["ioc_type"]
+					ioc = item["ioc"]
+					# handle ioc_type values that are in the mapping
+					if ioc_type in field_map:
+						for field in field_map[ioc_type]:
+							if keep_types:
+								out.setdefault(ioc_type, {}).setdefault(field, []).append(ioc)
+							else:
+								out.setdefault(field, []).append(ioc)
+					# handle ioc_type values that are NOT in the mapping
+					else:
+						out.setdefault("no_mapping", {}).setdefault(ioc_type, []).append(ioc)
+		# clean "without types" dict
+		for field_name, values in out.items():
+			if isinstance(values, list):
+				out[field_name] = list(dict.fromkeys(values))
+		# clean "with types" dict
+		for type_name, fields_dict in out.items():
+			if isinstance(fields_dict, dict):
+				for field_name, values in fields_dict.items():
+					if isinstance(values, list):
+						fields_dict[field_name] = list(dict.fromkeys(values))
+		return out
 
+	def _NYI_to_sqlite(self, db_path: str = "iocs.db") -> None:
+		"""NOT YET IMPLEMENTED: Exports indicators to a SQLite database."""
+		if self.input_source is None:
+			raise ValueError("No input source provided to ParseIOC parser.")
+		
+		#ioc_data = self.parse_many(mode="combined")
+		ioc_data = "TODO: PROVIDE AN INPUT OBJECT (SINGLE MODE) TO THIS METHOD"
 
-def to_sqlite(input_object: List[str] | TextIO, db_path: str = "iocs.db") -> None:
-	"""Parse list or file of indicators into a SQLite database.
+		conn = sqlite3.connect(db_path)
+		cursor = conn.cursor()
+		cursor.execute("CREATE TABLE IF NOT EXISTS indicators (ioc TEXT PRIMARY KEY, ioc_type TEXT NOT NULL)")
 
-	Args:
-		input_object: list of IOCs, or path to a text file containing IOCs
-		db_path: path to the output database; default "iocs.db"
-	"""
-	# get the combined dict using parse_multi() in combined mode
-	ioc_data = parse_multi(input_object, mode="combined")
+		to_insert = []
+		if isinstance(ioc_data, dict):
+			for ioc_type, iocs in ioc_data.items():
+				for ioc in iocs:
+					to_insert.append((ioc, ioc_type))
 
-	conn = sqlite3.connect(db_path)
-	cursor = conn.cursor()
-
-	# create table if it doesn't exist
-	cursor.execute("CREATE TABLE IF NOT EXISTS indicators (ioc TEXT PRIMARY KEY, type TEXT NOT NULL)")
-
-	# prep for insert
-	to_insert = []
-	for ioc_type, iocs in ioc_data.items():
-		for ioc in iocs:
-			to_insert.append((ioc, ioc_type))
-
-	# insert and commit
-	cursor.executemany("INSERT OR IGNORE INTO indicators (ioc, type) VALUES (?, ?)", to_insert)
-	conn.commit()
-	conn.close()
-	print(f"exported {len(to_insert)} indicators to {db_path}")
-
-
-def _field_mapper(iocs: dict, map_file_name: str, keep_types: bool=False) -> dict:
-	"""Match field mapping to provided ioc_parse output.
-
-	This is the worker function that maps indicators to SIEM field  names.
-
-	Args:
-		ioc: the post-processed IOCs in a dictionary
-		map_file_name: path to the TOML mapping file
-		keep_types: preserve the types of the fields being processes, such as ipv4, email, etc
-		  - this changes the structure of the output dictionary to field_type[field_name]:[vals, ...]
-	"""
-	try:
-		with open(map_file_name, "rb") as f:
-			map_data = tomllib.load(f)
-	except Exception as e:
-		return str(e)+": cannot open TOML field mapping file."
-	# dict to be returned
-	out = {}
-	# list to store subdicts, if keep_types is True
-	out_with_types = {}
-	if map_data.get("field_map"):
-		# the type of field, ipv4, domain, etc
-		for field_type in map_data["field_map"]:
-			# hold the field type in a list-of-dictionaries, in case the user wants to keep them
-			out_with_types[field_type] = {}
-			# if the key (ioc type) exists in the parsed IOCs
-			if iocs.get(field_type):
-				# each field we want in the final output, from map toml
-				for field_name in map_data["field_map"][field_type]:
-					# build the dict that keeps field types defined in the toml
-					# make a key if not already there
-					if not out_with_types[field_type].get(field_name):
-						out_with_types[field_type][field_name] = []
-					out_with_types[field_type][field_name].extend(iocs[field_type])
-					# build a simpler output dict that only returns the new field:[vals]
-					# make a key if not already there
-					if not out.get(field_name):
-						out[field_name] = []
-					# extend the IOCs into the output mapping via shared key
-					out[field_name].extend(iocs[field_type])
-	else:
-		return "error: no key field_map in loaded TOML file"
-	if keep_types:
-		return out_with_types
-	return out
-
-
-def map_fields(input_object: List[str] | TextIO, map_file_name: str, keep_types: bool=False) -> dict:
-	"""Callable function to map IOCs to the fields in the TOML configuration.
-
-	This is the friendly entrypoint to the field-to-mapping functions.
-
-	Args:
-		input_object: list of IOCs, or path to a text file containing IOCs
-		map_file_name: path to the TOML mapping file
-		keep_types: preserve the types of the fields being processes, such as ipv4, email, etc
-		  - this changes the structure of the output dictionary to field_type[field_name]:[vals, ...]
-	"""
-	parsed_iocs_combined = parse_multi(input_object, mode="combined")
-	return _field_mapper(parsed_iocs_combined, map_file_name, keep_types)
-
-
-def _assembler(l: List[str]) -> dict:
-	"""Combines all IOCs, including nested "extra" entries, into one dictionary.
-
-	Use this dictionary with mappings to field names for automated SIEM or database queries.
-
-	Args:
-		l: list of IOCs to be assembled into the combined structure.
-	"""
-	out = {}
-	def inner(d):
-		if d["ioc_type"] not in out:
-			out[d["ioc_type"]] = []
-			out[d["ioc_type"]].append(d["ioc"])
-		else:
-			out[d["ioc_type"]].append(d["ioc"])
-	for d in l:
-		inner(d)
-		if d.get("extra"):
-			for dd in d["extra"]:
-				inner(dd)
-	# clean output
-	for k,v in out.items():
-		out[k] = list(set(v))
-	return out
+		cursor.executemany("INSERT OR IGNORE INTO indicators (ioc, ioc_type) VALUES (?, ?)", to_insert)
+		conn.commit()
+		conn.close()
+		print(f"exported {len(to_insert)} indicators to {db_path}")
 
 
 if __name__ == "__main__":
-	#
-	ioc_list = ["bob@email.local", "website.local", "https://anotherwebsite.local:9443", "https://username:password@securewebsite.local:8443", "192.168.1.1", "192.168.1.0/24", "https://192.168.20.20/bad.txt", "NHKやさしいことばニュース.com"]
-	#
-	# categorize a single IOC
-	print(" categorize a single indicator ".center(80, "="))
-	parsed_indicator = ParseIOC("https://192.168.20.20/bad.txt")
-	print(".to_dict:", type(parsed_indicator.to_dict), parsed_indicator.to_dict)
-	print(".to_json:", type(parsed_indicator.to_json), parsed_indicator.to_json)
-	#
-	# THIS IS THE FIRST PRIMARY OUTPUT
-	# parse a list or file IOCs into a large dict or json structure using parse_multi()
-	print(" parse a list of IOCs into a combined structure ".center(80, "="))
-	iocs_from_list = parse_multi(ioc_list, mode="combined")
-	print(json.dumps(iocs_from_list, indent=4))
-	print(" parse a file of IOCs into a combined structure ".center(80, "="))
-	iocs_from_file = parse_multi("tests/ioc_examples.txt", mode="combined")
-	print(json.dumps(iocs_from_file, indent=4))
-	#
-	# alternatively parse a file line by line (mode=single) into dicts, instead of calling ParseIOC(indicator)
-	print(" yield dictionaries from a list or file, instead of a combined structure ".center(80, "="))
-	for item in parse_multi("tests/ioc_examples.txt", mode="single"):
-		print(item)
-	#
-	# THIS IS THE SECOND PRIMARY OUTPUT
-	# use a field map to stage siem or database queries
-	print(" provide IOC (file or list) and TOML config (path) map_fields() ".center(80, "="))
-	#m = map_fields(ioc_list, "map_ecs.toml")
-	m = map_fields("tests/ioc_examples.txt", "map_ecs.toml")
-	print(json.dumps(m, indent=4))
-	#
-	# THIS IS THE SECOND PRIMARY OUTPUT, BUT KEEPING THE ORIGINAL FIELD TYPES (ipv4, etc)
-	print(" map_fields() and keep IOC types ".center(80, "="))
-	m2 = map_fields("tests/ioc_examples.txt", "map_ecs.toml", keep_types=True)
-	print(json.dumps(m2, indent=4))
-	#
-	# create sqlite db - the default name is iocs.db
-	print(" output to Sqlite database ".center(80, "="))
-	to_sqlite("tests/ioc_examples.txt", "out.db")
-	connection = sqlite3.connect("out.db")
-	cursor = connection.cursor()
-	cursor.execute("SELECT * FROM indicators")
-	rows = cursor.fetchall()
-	for row in rows:
-		print(row)
-	connection.close()
+
+	# parse a single item
+	single_result = ParseIOC.parse_one("https://user:password@bad.local:8080")
+	print(" parse_one ".center(80, "="))
+	print(f"{single_result.to_dict=}")
+	print(f"{single_result.to_json=}")
+	print(f"{single_result.ioc_type}")
+
+	# parse many items from a file using the parser
+	file_parser = ParseIOC("tests/ioc_examples.txt")
+
+	print(" parse_many - combined ".center(80, "="))
+	print(json.dumps(file_parser.parse_many(mode="combined"), indent=4))
+
+	# parse many items from a file using the parser in single mode
+	print(" parse_many - single ".center(80, "="))
+	list_of_dicts = file_parser.parse_many(mode="single")
+	print(json.dumps(list_of_dicts, indent=4))
+
+	print(" map_fields - without types ".center(80, "="))
+	map_without_types = file_parser.map_fields(list_of_dicts, map_file="map_ecs.toml")
+	print(json.dumps(map_without_types, indent=4))
+
+	print(" map_fields - with types ".center(80, "="))
+	map_with_types = file_parser.map_fields(list_of_dicts, map_file="map_ecs.toml", keep_types=True)
+	print(json.dumps(map_with_types, indent=4))
+
+	print(" parse_one map_fields - without types ".center(80, "="))
+	single_map_without_types = file_parser.map_fields(single_result.to_dict, map_file="map_ecs.toml")
+	print(json.dumps(single_map_without_types, indent=4))
+
+	print(" parse_one map_fields - with types ".center(80, "="))
+	single_map_with_types = file_parser.map_fields(single_result.to_dict, map_file="map_ecs.toml", keep_types=True)
+	print(json.dumps(single_map_with_types, indent=4))
+
+	print(" read a whole file, then parse_one+map_fields - without types ".center(80, "="))
+	with open("tests/ioc_examples.txt", "r") as f:
+		for line in f:
+			parsed_line = ParseIOC.parse_one(line).to_dict
+			mapped_line = file_parser.map_fields(parsed_line, map_file="map_ecs.toml")
+			print(json.dumps(mapped_line, indent=4))
+
+	print(" read a whole file, then parse_one+map_fields - with types ".center(80, "="))
+	with open("tests/ioc_examples.txt", "r") as f:
+		for line in f:
+			parsed_line = ParseIOC.parse_one(line).to_dict
+			mapped_line = file_parser.map_fields(parsed_line, map_file="map_ecs.toml", keep_types=True)
+			print(json.dumps(mapped_line, indent=4))

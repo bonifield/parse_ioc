@@ -1,9 +1,14 @@
 [project]
 name = "parse_ioc"
-version = "0.6.0"
+version = "0.7.0"
 description = "Parse a list of indicators into a dictionary or JSON structure for programmatic use."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 [project.urls]
 Homepage = "https://github.com/bonifield/parse_ioc"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
